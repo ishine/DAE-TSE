@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wesep"
+version = "0.1.0"
+description = "DAE-TSE inference runtime (keyword-guided target speaker extraction)"
+requires-python = ">=3.8"
+dependencies = [
+    "torch",
+    "torchaudio",
+    "numpy",
+    "PyYAML",
+    "soundfile",
+    "fire",
+    "tqdm",
+    "g2p_en",
+]
+
+[tool.setuptools.packages.find]
+include = ["wesep*"]

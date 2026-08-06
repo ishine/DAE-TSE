@@ -1,0 +1,37 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info
+*.egg
+dist/
+build/
+**/*build*
+
+# Editors / IDE
+.vscode
+.vs
+.idea
+.cursor/
+*.swn
+*.swo
+*.swp
+*.swm
+*~
+
+# Environments
+venv
+.venv
+
+# Jupyter / macOS
+.ipynb_checkpoints
+.DS_Store
+
+# Experiment artifacts and audio data (download / prepare separately)
+exp
+examples/**/exp
+examples/**/data/clean
+raw_wav
+tensorboard
+wespeaker_models
+*.log

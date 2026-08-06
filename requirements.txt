@@ -1,0 +1,12 @@
+# Install the CUDA 12.6 PyTorch stack first (exact versions used by this release):
+#   pip install --index-url https://download.pytorch.org/whl/cu126 \
+#     torch==2.9.1+cu126 torchaudio==2.9.1+cu126 torchcodec==0.9.1+cu126
+#
+# Then install the remaining deps:
+#   pip install -r requirements.txt
+numpy
+PyYAML
+soundfile
+fire
+tqdm
+g2p_en
