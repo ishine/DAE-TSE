@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="https://arxiv.org/abs/2602.07977"><img src="https://img.shields.io/badge/arXiv-2602.07977-b31b1b.svg" alt="arXiv"></a>
-  <a href="https://huggingface.co/DAE-TSE/Pretrained"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-Pretrained-yellow" alt="HuggingFace"></a>
+  <a href="https://huggingface.co/GnafiY/DAE-TSE"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-Pretrained-yellow" alt="HuggingFace"></a>
   <a href="https://gnafiy.github.io/DAE-TSE_demo"><img src="https://img.shields.io/badge/Demo-Page-blue" alt="Demo"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-green.svg" alt="License"></a>
 </p>
@@ -55,7 +55,7 @@ python -c "import torch, torchaudio, torchcodec, wesep, kce; print(torch.__versi
 
 ## Pretrained Models
 
-Download from [HuggingFace](https://huggingface.co/DAE-TSE/Pretrained) and place (or soft-link) under the recipe:
+Download from [HuggingFace](https://huggingface.co/GnafiY/DAE-TSE) and place (or soft-link) under the recipe:
 
 ```bash
 cd examples/librimix/dae-tse
