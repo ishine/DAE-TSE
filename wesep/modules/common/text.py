@@ -18,6 +18,7 @@ def get_asr_encoder(conf: dict):
     }
     return model_dict[model_name](**conf)
 
+
 class TCASREncoder(nn.Module):
     def __init__(self, checkpoint_path: str, fnn: dict, multi_task: bool = False, spksInTrain: int = 251,
                  backbone_freeze: bool = True, eps: float = 1e-5):
@@ -26,6 +27,7 @@ class TCASREncoder(nn.Module):
         # wav -> fbank
         self.frontend = kaldi.fbank
         self.frontend_conf = self.load_frontend(checkpoint_path)
+        self.frame_shift_s = float(self.frontend_conf.get("frame_shift", 10)) / 1000.0
 
         # load & freeze TC-ASR model
         self.tcasr_encoder = self.load_checkpoint(checkpoint_path)
@@ -70,7 +72,7 @@ class TCASREncoder(nn.Module):
 
         config_file = '{}/model.yaml'.format(exp_dir)
         model_config = yaml.load(open(config_file), Loader=yaml.FullLoader)
-        
+
         model = AEDKWSASRPhone(**model_config)
         state_dict = torch.load(
             checkpoint_path,
@@ -81,14 +83,22 @@ class TCASREncoder(nn.Module):
 
         return model
 
-    def forward(self, wav_input: torch.Tensor, text_input: list):
+    def forward(self, wav_input: torch.Tensor, text_input: list,
+                return_attention: bool = False, attn_layer: int = -1):
         fbank = [self.frontend(_.unsqueeze(0), **self.frontend_conf) for _ in wav_input]
         fbank_len = torch.tensor([_.shape[0] for _ in fbank])
         fbank = pad_sequence(fbank, batch_first=True)
         fbank_len = fbank_len.to(fbank.device)
-        sph_emb = self.forward_tcasr((fbank, fbank_len), text_input)     # B, T, D
-        pooled_sph_emb = self.forward_pooling(sph_emb)                       # B, D
 
+        if return_attention:
+            sph_emb, attn_pack = self.forward_tcasr(
+                (fbank, fbank_len), text_input,
+                return_attention=True, attn_layer=attn_layer)
+        else:
+            sph_emb = self.forward_tcasr((fbank, fbank_len), text_input)
+            attn_pack = None
+
+        pooled_sph_emb = self.forward_pooling(sph_emb)  # B, D
         speaker_emb = self.fnn(pooled_sph_emb)
 
         if self.multi_task:
@@ -96,10 +106,13 @@ class TCASREncoder(nn.Module):
         else:
             speaker_pred = None
 
+        if return_attention:
+            return speaker_emb, speaker_pred, attn_pack
         return speaker_emb, speaker_pred
 
     @torch.no_grad()
-    def forward_tcasr(self, wav_input, text_input):
+    def forward_tcasr(self, wav_input, text_input, return_attention: bool = False,
+                      attn_layer: int = -1):
         sph_input, sph_len = wav_input
         kw_label, kw_len = text_input
         b, t, d = sph_input.size()
@@ -127,6 +140,7 @@ class TCASREncoder(nn.Module):
             kw_emb,
             attention_mask=kw_mask,
         )
+        # analyse=True is required: speaker emb uses sph_emb_list[-2]
         sph_emb, (sph_att_scores, sph_emb_list) = self.tcasr_encoder.forward_transformer(
             self.tcasr_encoder.speech_transformer,
             sph_emb,
@@ -138,8 +152,9 @@ class TCASREncoder(nn.Module):
         )
 
         '''
-            sph_att_scores: dict, with range(batch_size) as key, shape [n_head, T, T]
-            sph_emb_list:   dict, with range(batch_size) as key, shape [batch_size, T, D]
+            sph_att_scores: dict, with range(batch_size) as key,
+                list[layer] of [n_head, T_speech, T_kw]
+            sph_emb_list:   dict, with range(batch_size) as key
         '''
         sph_emb_list = sph_emb_list[0]  # omit repeated sph_emb
 
@@ -147,8 +162,31 @@ class TCASREncoder(nn.Module):
             sph_emb = self.tcasr_encoder.sv_ce_crit.forward_pooling(sph_emb_list, sph_len)
         else:
             sph_emb = sph_emb_list[-2]
-        return sph_emb
-    
+
+        if not return_attention:
+            return sph_emb
+
+        n_layers = len(sph_att_scores[0])
+        layer_idx = attn_layer if attn_layer >= 0 else n_layers + attn_layer
+        att_list = []
+        for bidx in range(b):
+            t_len = int(sph_len[bidx].item())
+            k_len = int(kw_len[bidx].item())
+            att = sph_att_scores[bidx][layer_idx][:, :t_len, :k_len]
+            att = att.mean(dim=0).detach().cpu()
+            att_list.append(att)
+
+        attn_pack = {
+            "attention": att_list,  # list of [T, K]
+            "attention_map": att_list,  # alias
+            "speech_len": sph_len.detach().cpu(),
+            "kw_len": kw_len.detach().cpu(),
+            "kw_label": kw_label.detach().cpu(),
+            "frame_shift_s": self.frame_shift_s,
+            "layer_idx": layer_idx,
+        }
+        return sph_emb, attn_pack
+
     def forward_pooling(self, sph_emb: torch.Tensor):
         if self.tcasr_encoder.use_sv:     # B x D
             return sph_emb

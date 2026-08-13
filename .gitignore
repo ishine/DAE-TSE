@@ -35,3 +35,9 @@ raw_wav
 tensorboard
 wespeaker_models
 *.log
+
+# Local Gradio demo runtime
+examples/**/demo/audios/
+examples/**/demo/extracted/
+examples/**/demo/.gradio/
+.gradio/

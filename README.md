@@ -7,12 +7,33 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-green.svg" alt="License"></a>
 </p>
 
+## Table of Contents
+
+- [News](#news)
+- [Overview](#overview)
+- [Environment Setup](#environment-setup)
+- [Pretrained Models](#pretrained-models)
+- [Data](#data)
+- [Interactive Demo](#interactive-demo-interactive)
+- [Inference](#inference)
+- [Citation](#citation)
+- [License](#license)
+
+## News
+
+Dates below are in **China Standard Time (UTC+8)**.
+
+- **[2026-08-13]** 🎮 Interactive Gradio demo released (LibriMix uid lookup + OOD upload).
+- **[2026-08-06]** 📦 Official inference code and pretrained weights released.
+
+## Overview
+
 **DAE-TSE** extracts a target speaker from multi-talker mixtures using only **keywords** (partial transcription) spoken by that speaker — no clean enrollment utterance is required.
 
-It follows the **Detect–Attend–Extract** paradigm:
+It follows the **Detect-Attend-Extract** paradigm:
 
 1. **Detect** whether the given keywords appear in the mixture  
-2. **Attend** to the corresponding speaker via mixture–keyword cross-attention  
+2. **Attend** to the corresponding speaker via mixture-keyword cross-attention  
 3. **Extract** the full target speech with a text-aware TSE backbone  
 
 The system has two components: a **Keyword-guided Cue Encoder (KCE)** that produces a speaker cue from the mixture and keywords, and a **TSE backbone** (text-aware BSRNN) that performs extraction. On LibriMix with 4 keywords (~28% of the full transcript), the released checkpoint reaches **SI-SNRi = 16.45 dB**.
@@ -120,6 +141,27 @@ Resources used (shipped under `data/text_cue/`):
 
 - `phoneme2int.txt` — phoneme → id (must match KCE)
 - `word2lexicon.txt` — optional word cache for speed
+
+## Interactive Demo (Interactive)
+
+An interactive Gradio demo for keyword-guided extraction on **LibriMix mix-clean**
+(enter a mixture uid → show full s1/s2 transcripts to copy keywords).
+OOD uploads are not guaranteed.
+
+**Prerequisite:** prepare LibriMix inference data first (same as batch inference
+stage 1). The LibriMix tab needs `examples/librimix/dae-tse/data/clean/test/wav.scp`
+— see [LibriMix audio](#librimix-audio-prepare-via-wesep-style-scripts) above.
+Without that list, uid lookup will not work (OOD upload tab can still run).
+
+```bash
+# main env already set up; checkpoints linked under examples/librimix/dae-tse/exp/
+# and LibriMix wav.scp prepared via infer.sh --stage 1
+pip install -r requirements-demo.txt
+cd examples/librimix/dae-tse
+bash demo/run_demo.sh
+```
+
+See [examples/librimix/dae-tse/demo/README.md](examples/librimix/dae-tse/demo/README.md).
 
 ## Inference
 

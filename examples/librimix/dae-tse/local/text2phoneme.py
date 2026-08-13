@@ -13,9 +13,12 @@ import argparse
 import json
 import os
 import sys
+import unicodedata
 from typing import Dict, List, Optional
 
-PUNCTUATION = '!"#$%&()*+,-./:;<=>?@[\\]^_`{|}~'  # keep apostrophes (e.g. 's)
+# ASCII punct stripped by translate; unicode punct via category below.
+# Apostrophes are kept (e.g. infant's).
+PUNCTUATION = '!"#$%&()*+,-./:;<=>?@[\\]^_`{|}~'
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _DEFAULT_RESOURCE_DIR = os.path.realpath(
@@ -23,9 +26,46 @@ _DEFAULT_RESOURCE_DIR = os.path.realpath(
 
 
 def normalize_text(text: str) -> str:
-    text = text.strip()
-    text = text.translate(str.maketrans('', '', PUNCTUATION))
-    return text.lower()
+    """Lowercase, unify apostrophes, drop punctuation (ASCII + unicode)."""
+    text = (text or "").strip()
+    text = (text.replace("\u2019", "'").replace("\u2018", "'")
+            .replace("\u0060", "'").replace("\u00b4", "'"))
+    # Replace punct with space so "hello,world" / "keswick—march" stay split.
+    cleaned = []
+    for ch in text:
+        if ch == "'":
+            cleaned.append(ch)
+        elif ch in PUNCTUATION or unicodedata.category(ch).startswith("P"):
+            cleaned.append(" ")
+        else:
+            cleaned.append(ch)
+    return " ".join("".join(cleaned).lower().split())
+
+
+def prepare_keyword_text(text: str) -> str:
+    """Normalize keyword text; require English letters only (demo/CLI gate).
+
+    Punctuation is stripped. Remaining characters must be ``a-z``, spaces,
+    or apostrophes. Raises ``ValueError`` on empty or non-English input.
+    """
+    raw = (text or "").strip()
+    if not raw:
+        raise ValueError("Keyword / enroll text cannot be empty.")
+    normalized = normalize_text(raw)
+    if not normalized:
+        raise ValueError(
+            "Keyword is empty after removing punctuation. "
+            "Please enter an English phrase.")
+    bad = sorted({
+        ch for ch in normalized
+        if not (ch == " " or ch == "'" or ("a" <= ch <= "z"))
+    })
+    if bad:
+        shown = ", ".join(repr(c) for c in bad[:8])
+        raise ValueError(
+            "Only English letters (a-z) are supported for keywords "
+            f"(apostrophes allowed). Non-English character(s): {shown}")
+    return normalized
 
 
 def read_p2idx(path: str) -> Dict[str, int]:

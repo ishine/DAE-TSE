@@ -276,15 +276,24 @@ class DAEBSRNN(nn.Module):
         if self.asr_encoder is None:
             return None
         data_type = additional.pop('data_type')
+        return_attention = bool(additional.pop('return_attention', False))
+        attn_layer = int(additional.pop('attn_layer', -1))
         if self.asr_encoder_name == 'TCASREncoder':
             assert data_type == 'TC-ASR'
             text_input = [additional['data'][_] for _ in ['kw_label', 'kw_len']]
-            if 'mix_enroll' in additional['data'].keys(): 
-                # for test, ablation
-                speaker_emb, speaker_pred = self.asr_encoder(additional['data']['mix_enroll'], text_input)
-            else:
-                speaker_emb, speaker_pred = self.asr_encoder(mix_wav, text_input)
-
+            wav_for_asr = (
+                additional['data']['mix_enroll']
+                if 'mix_enroll' in additional['data'] else mix_wav)
+            if return_attention:
+                speaker_emb, speaker_pred, attn_pack = self.asr_encoder(
+                    wav_for_asr, text_input,
+                    return_attention=True, attn_layer=attn_layer)
+                return (
+                    speaker_emb.unsqueeze(1).unsqueeze(3),
+                    speaker_pred,
+                    attn_pack,
+                )
+            speaker_emb, speaker_pred = self.asr_encoder(wav_for_asr, text_input)
             return speaker_emb.unsqueeze(1).unsqueeze(3), speaker_pred
         else:
             raise NotImplementedError(f"Unsupported ASR encoder: {self.asr_encoder_name}")
@@ -293,8 +302,13 @@ class DAEBSRNN(nn.Module):
         '''
             wav_input shape: (B, T), wav
             spk_emb_input shape: (B, T'), wav
+
+            If ``additional_input['return_attention']`` is True, also returns
+            the KCE mixture-keyword attention pack as a third value.
         '''
         del spk_emb_input   # saving cuda memory
+
+        return_attention = bool(additional_input.get('return_attention', False))
 
         # frequency-domain separation
         spec = self.forward_stft(wav_input)
@@ -306,7 +320,12 @@ class DAEBSRNN(nn.Module):
         subband_feature = self.forward_subband_feature(subband_spec)
 
         # construct cue embedding from ASR encoder (TC-ASR)
-        asr_encoded_mix, asr_speaker_pred = self.forward_asr_encoder(wav_input, additional_input)
+        asr_out = self.forward_asr_encoder(wav_input, additional_input)
+        if return_attention:
+            asr_encoded_mix, asr_speaker_pred, attn_pack = asr_out
+        else:
+            asr_encoded_mix, asr_speaker_pred = asr_out
+            attn_pack = None
         _, nband, _, T = subband_feature.shape
         embedding = asr_encoded_mix.repeat(1, nband, 1, T)
 
@@ -317,4 +336,6 @@ class DAEBSRNN(nn.Module):
         est_spec = self.forward_mask(sep_output, subband_mix_spec)
         s = self.forward_istft(wav_input, est_spec)
 
+        if return_attention:
+            return s, asr_speaker_pred, attn_pack
         return s, asr_speaker_pred
